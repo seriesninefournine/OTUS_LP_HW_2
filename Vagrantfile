@@ -58,6 +58,8 @@ Vagrant.configure("2") do |config|
 	            mkdir -p ~root/.ssh
                 cp ~vagrant/.ssh/auth* ~root/.ssh
 	            yum install -y mdadm smartmontools hdparm gdisk
+                sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/#g' /etc/ssh/sshd_config
+                systemctl restart sshd
   	        SHELL
         end
     end
