@@ -8,23 +8,39 @@ MACHINES = {
 	:disks => {
 		:sata1 => {
 			:dfile => './sata1.vdi',
-			:size => 250,
-			:port => 1
+			:size => 40960,
+			:port => 1,
+            :variant => 'Standard'
 		},
 		:sata2 => {
             :dfile => './sata2.vdi',
             :size => 250, # Megabytes
-			:port => 2
+			:port => 2,
+            :variant => 'Fixed'
 		},
         :sata3 => {
             :dfile => './sata3.vdi',
             :size => 250,
-            :port => 3
+            :port => 3,
+            :variant => 'Fixed'
         },
         :sata4 => {
             :dfile => './sata4.vdi',
             :size => 250, # Megabytes
-            :port => 4
+            :port => 4,
+            :variant => 'Fixed'
+        },
+        :sata5 => {
+            :dfile => './sata5.vdi',
+            :size => 250, # Megabytes
+            :port => 5,
+            :variant => 'Fixed'
+        },
+        :sata6 => {
+            :dfile => './sata6.vdi',
+            :size => 250, # Megabytes
+            :port => 6,
+            :variant => 'Fixed'
         }
 
 	}		
@@ -43,7 +59,7 @@ Vagrant.configure("2") do |config|
                 needsController = false
                 boxconfig[:disks].each do |dname, dconf|
                     unless File.exist?(dconf[:dfile])
-                        vb.customize ['createhd', '--filename', dconf[:dfile], '--variant', 'Fixed', '--size', dconf[:size]]
+                        vb.customize ['createmedium', '--filename', dconf[:dfile], '--variant', dconf[:variant], '--size', dconf[:size]]
                         needsController =  true
                     end
                 end
