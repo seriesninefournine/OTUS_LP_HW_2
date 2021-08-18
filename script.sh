@@ -1,7 +1,17 @@
 #!/bin/bash
+#При составлении скрипта использовались материалы:
+#https://otus.ru/lessons/linux-professional/
+#https://kamaok.org.ua/?p=1808
+#https://habr.com/ru/post/248073/
+
+mkdir -p ~root/.ssh
+cp ~vagrant/.ssh/auth* ~root/.ssh
+yum install -y mdadm smartmontools hdparm gdisk nano
+sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/#g' /etc/ssh/sshd_config
+systemctl restart sshd
 
 #Чистим на всех дисках информацию о raid
-mdadm --zero-superblock --force /dev/sd{b,c,d,e,f,g}
+mdadm --zero-superblock --force /dev/sd{b,c,d,e,f}
 
 #Копируем структура диска sda->sdb
 sfdisk -d /dev/sda | sfdisk -f /dev/sdb
@@ -9,8 +19,7 @@ sfdisk -d /dev/sda | sfdisk -f /dev/sdb
 #Меняем ИД раздела на Linux raid autodetect
 sfdisk --change-id /dev/sdb 1 fd
 
-#modprobe linear
-#modprobe raid1
+modprobe raid1
 
 #Создаем raid1 из /dev/sdb1 и несуществующего диска
 mdadm --create --verbose /dev/md0 -e 0.90 -l 1 -n 2 missing /dev/sdb1
@@ -36,7 +45,7 @@ mkdir /mnt
 
 #Сохраняем конфигурацию mdadm.conf
 #mkdir /etc/mdadm
-mdadm --detail --scan > /etc/mdadm.conf
+mdadm --detail --scan --verbose > /etc/mdadm.conf
 #echo "DEVICE partitions" > /etc/mdadm/mdadm.conf
 #mdadm --detail --scan --verbose | awk '/ARRAY/ {print}' >> /etc/mdadm/mdadm.conf
 
@@ -61,7 +70,10 @@ grub2-install /dev/sda
 
 #Указываем SELinux на новый диск
 touch /.autorelabel
+
 EOF
+
+shutdown -r now
 
 #sfdisk --change-id /dev/sda 1 fd
 #mdadm --manage --add /dev/md0 /dev/sda1

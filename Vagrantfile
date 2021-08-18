@@ -42,7 +42,6 @@ MACHINES = {
             :port => 6,
             :variant => 'Fixed'
         }
-
 	}		
   },
 }
@@ -70,13 +69,7 @@ Vagrant.configure("2") do |config|
                     end
                 end
             end
- 	        box.vm.provision "shell", inline: <<-SHELL
-	            mkdir -p ~root/.ssh
-                cp ~vagrant/.ssh/auth* ~root/.ssh
-	            yum install -y mdadm smartmontools hdparm gdisk nano
-                sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/#g' /etc/ssh/sshd_config
-                systemctl restart sshd
-  	        SHELL
+            box.vm.provision "shell", path: "script.sh"
         end
     end
 end
