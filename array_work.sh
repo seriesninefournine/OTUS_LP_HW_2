@@ -3,14 +3,16 @@
 modprobe raid456
 mdadm --zero-superblock --force /dev/sd{c,d,e,f,g}
 
-for k in c d e f g; do
-  parted -s /dev/sd$k mklabel gpt
-  parted /dev/sd$k mkpart primary 0% 100%
-  sfdisk --change-id /dev/sd$k 1 fd;
-done
-
 #Создаем массив RAID5
-mdadm --create --verbose /dev/md1 -e 0.90 -l 5 -n 4 /dev/sd{c,d,e,f}1
+mdadm --create --verbose /dev/md1 -e 1.2 -l 5 -n 4 /dev/sd{c,d,e,f}
+
+#Сохраняем конфиг RAID
+echo "DEVICE partitions" > /etc/mdadm.conf
+mdadm --detail --scan --verbose | awk '/ARRAY/ {print}' >> /etc/mdadm.conf
+
+#Обновляем загрузчик
+mv -f /boot/initramfs-$(uname -r).img /boot/initramfs-$(uname -r).img.old
+dracut -f /boot/initramfs-$(uname -r).img
 
 #Создаем GPT раздел
 parted -s /dev/md1 mklabel gpt
@@ -22,11 +24,6 @@ parted /dev/md1 mkpart primary ext4 40% 60%
 parted /dev/md1 mkpart primary ext4 60% 80%
 parted /dev/md1 mkpart primary ext4 80% 100%
 
-#Сохраняем конфиг RAID
-mdadm --detail --scan --verbose > /etc/mdadm.conf
-
-mv /boot/initramfs-$(uname -r).img /boot/initramfs-$(uname -r).img.old
-dracut -f /boot/initramfs-$(uname -r).img
 
 #Форматируем разделы и монтируем их
 
@@ -42,3 +39,9 @@ dd if=/dev/urandom of=/raid/p3/testfile bs=10M count=3
 
 #Сломаем один из дисков (/dev/sdd)
 mdadm /dev/md1 --fail /dev/sdd
+
+#Убираем его из массива
+mdadm /dev/md1 --remove /dev/sdd
+
+#Добавляем в массив другой диск
+mdadm /dev/md1 --add /dev/sdg

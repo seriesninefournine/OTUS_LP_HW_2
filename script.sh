@@ -6,7 +6,7 @@
 
 mkdir -p ~root/.ssh
 cp ~vagrant/.ssh/auth* ~root/.ssh
-yum install -y mdadm smartmontools hdparm gdisk nano
+yum install -y mdadm smartmontools hdparm gdisk nano mc
 sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/#g' /etc/ssh/sshd_config
 systemctl restart sshd
 
@@ -19,6 +19,7 @@ sfdisk -d /dev/sda | sfdisk -f /dev/sdb
 #Меняем ИД раздела на Linux raid autodetect
 sfdisk --change-id /dev/sdb 1 fd
 
+#Включаем модели для работы в массивами
 modprobe raid1
 
 #Создаем raid1 из /dev/sdb1 и несуществующего диска
@@ -45,9 +46,9 @@ mkdir /mnt
 
 #Сохраняем конфигурацию mdadm.conf
 #mkdir /etc/mdadm
-mdadm --detail --scan --verbose > /etc/mdadm.conf
-#echo "DEVICE partitions" > /etc/mdadm/mdadm.conf
-#mdadm --detail --scan --verbose | awk '/ARRAY/ {print}' >> /etc/mdadm/mdadm.conf
+echo "DEVICE partitions" > /etc/mdadm.conf
+#mdadm --detail --scan --verbose > /etc/mdadm.conf
+mdadm --detail --scan --verbose | awk '/ARRAY/ {print}' >> /etc/mdadm.conf
 
 #Прописываем загрузку с /dev/md0 в fstab и grub 
 
