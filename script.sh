@@ -1,80 +1,49 @@
 #!/bin/bash
-#При составлении скрипта использовались материалы:
-#https://otus.ru/lessons/linux-professional/
-#https://kamaok.org.ua/?p=1808
-#https://habr.com/ru/post/248073/
 
-mkdir -p ~root/.ssh
-cp ~vagrant/.ssh/auth* ~root/.ssh
-yum install -y mdadm smartmontools hdparm gdisk nano mc
-sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/#g' /etc/ssh/sshd_config
-systemctl restart sshd
+#Создаем зеркальный том (R1)
+zpool create pool_R1 mirror /dev/sd{b,c}
 
-#Чистим на всех дисках информацию о raid
-mdadm --zero-superblock --force /dev/sd{b,c,d,e,f}
+#Создадим несколько пулов с разными алгоритмами сжатия
+#И загрузим в них файлы
+curl -O http://www.gutenberg.org/ebooks/2600.txt.utf-8
 
-#Копируем структура диска sda->sdb
-sfdisk -d /dev/sda | sfdisk -f /dev/sdb
+for i in {gzip,gzip-9,zle,lzjb,lz4}; do
+  zfs create pool_R1/compress_$i
+  zfs set compression=$i pool_R1/compress_$i
+  for k in $(seq 1 10); do
+    cp 2600.txt.utf-8 /pool_R1/compress_$i/$k.2600.txt.utf-8
+  done
+  cp -R /etc/ /pool_R1/compress_$i
+done
 
-#Меняем ИД раздела на Linux raid autodetect
-sfdisk --change-id /dev/sdb 1 fd
-
-#Включаем модели для работы в массивами
-modprobe raid1
-
-#Создаем raid1 из /dev/sdb1 и несуществующего диска
-mdadm --create --verbose /dev/md0 -e 0.90 -l 1 -n 2 missing /dev/sdb1
-
-#Форматируем /dev/md0
-mkfs.xfs /dev/md0
-
-#Монтируем /dev/md0
-mount /dev/md0 /mnt/
-
-#Переносим систему в /mnt/
-#rsync -axu / /mnt/
-rsync -axu --exclude '/mnt' / /mnt/
-
-#Монтируем информацию о текущей системе в наш новый корень и делаем chroot в него
-
-mount -o bind /proc /mnt/proc
-mount -o bind /dev /mnt/dev
-mount -o bind /sys /mnt/sys
-chroot /mnt/ << EOF
-mkdir /mnt
+#Вывод команды из которой видно какой из алгоритмов лучше
+#[root@server ~]# zfs get compression,compressratio
+#NAME                     PROPERTY       VALUE     SOURCE
+#pool_R1                  compression    off       default
+#pool_R1                  compressratio  2.22x     -
+#pool_R1/compress_gzip    compression    gzip      local
+#pool_R1/compress_gzip    compressratio  3.60x     -
+#pool_R1/compress_gzip-9  compression    gzip-9    local
+#pool_R1/compress_gzip-9  compressratio  3.69x     -
+#pool_R1/compress_lz4     compression    lz4       local
+#pool_R1/compress_lz4     compressratio  2.35x     -
+#pool_R1/compress_lzjb    compression    lzjb      local
+#pool_R1/compress_lzjb    compressratio  2.08x     -
+#pool_R1/compress_zle     compression    zle       local
+#pool_R1/compress_zle     compressratio  1.27x     -
 
 
-#Сохраняем конфигурацию mdadm.conf
-#mkdir /etc/mdadm
-echo "DEVICE partitions" > /etc/mdadm.conf
-#mdadm --detail --scan --verbose > /etc/mdadm.conf
-mdadm --detail --scan --verbose | awk '/ARRAY/ {print}' >> /etc/mdadm.conf
+#Скачиваем файл от преподавателя и подключаем к zpool
+curl -o zfs_task1.tar.gz https://doc-0c-bo-docs.googleusercontent.com/docs/securesc/ha0ro937gcuc7l7deffksulhg5h7mbp1/jg4htf0hk936p3md8mafrrs062pbarem/1630270500000/16189157874053420687/*/1KRBNW33QWqbvbVHa3hLJivOAt60yukkg
+tar -xzf zfs_task1.tar.gz
+zpool import ./zpoolexport/filea otus
 
-#Прописываем загрузку с /dev/md0 в fstab и grub 
+#Получаем настройки zfs
+zfs get type,available,recordsize,checksum,compression,compressratio
+#zfs get compression,compressratio
+curl -o otus_task2.file https://doc-00-bo-docs.googleusercontent.com/docs/securesc/ha0ro937gcuc7l7deffksulhg5h7mbp1/69mg21cgr2it7pdikq3met4ie4talroh/1630273500000/16189157874053420687/*/1gH8gCL9y7Nd5Ti3IRmplZPF1XjzxeRAG
+zfs receive otus/storage < otus_task2.file
 
-sed -i -e "s/$(blkid -o value /dev/sda1 | grep -)/$(blkid -o value /dev/md0 | grep -)/g" /etc/fstab
-
-sed -i -e "s/GRUB_CMDLINE_LINUX=\"/GRUB_CMDLINE_LINUX=\"rd.auto=1 /g" /etc/default/grub
-
-
-#Обновляем загрузчик
-mv /boot/initramfs-$(uname -r).img /boot/initramfs-$(uname -r).img.old
-dracut -f /boot/initramfs-$(uname -r).img
-
-
-#Пересоздаем конфигурационный файл GRUB
-grub2-mkconfig -o /boot/grub2/grub.cfg
-
-#Устанавливаем загрузчик на оба диска
-grub2-install /dev/sdb
-grub2-install /dev/sda
-
-#Указываем SELinux на новый диск
-touch /.autorelabel
-
-EOF
-
-shutdown -r now
-
-#sfdisk --change-id /dev/sda 1 fd
-#mdadm --manage --add /dev/md0 /dev/sda1
+#Читаем содержимое секретного сообщения
+cat $(find /otus/storage -maxdepth 10 -type f -iname "secret_message")
+#https://github.com/sindresorhus/awesome
